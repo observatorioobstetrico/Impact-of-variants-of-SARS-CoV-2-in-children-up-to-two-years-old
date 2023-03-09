@@ -1,0 +1,401 @@
+---
+title: "Analysis of the age variable"
+date: "2023"
+author: "José Carlos Soares Junior"
+geometry: "left=1cm,right=1cm,top=2cm,bottom=2cm"
+header-includes:
+  - \usepackage{float}
+  - \floatplacement{figure}{H} 
+  - \renewcommand{\contentsname}{Contents}
+  - \usepackage{mdframed}
+  - \definecolor{shadecolor}{gray}{.90}
+  - \renewenvironment{Shaded}{\begin{mdframed}[
+      backgroundcolor=shadecolor,
+      linecolor = shadecolor,
+      leftmargin=\dimexpr\leftmargin-2pt\relax,
+      innerleftmargin=1.6pt,
+      innertopmargin=5pt,
+      skipabove=10pt,skipbelow=3pt
+    ]}{\end{mdframed}}
+output:   
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+    keep_tex: yes
+  word_document: default
+  html_document:
+    self_contained: no
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\newpage
+
+# R packages
+
+```{r packages,echo=TRUE,message=FALSE,results='hide',warning=FALSE}
+# Load packages
+loadlibrary <- function(x) {
+  if (!require(x, character.only = TRUE)) {
+    install.packages(x, dependencies = T)
+  if (!require(x, character.only = TRUE))
+  stop("Package not found")
+  }
+}
+
+packages <- c(
+  "readr",
+  "readxl",
+  "janitor",
+  "dplyr",
+  "forcats",
+  "stringr",
+  "lubridate",
+  "summarytools",
+  "magrittr",
+  "questionr",
+  "knitr",
+  "data.table",
+  "writexl",
+  "modelsummary",
+  "abjData",
+  "aweek",
+  "ggplot2",
+  "viridis"
+)
+lapply(packages, loadlibrary)
+
+# Global changes for the summarytools packages
+st_options(freq.cumul = FALSE,          
+           display.labels = TRUE,
+           lang = "pt",
+           bootstrap.css = FALSE,
+           plain.ascii = FALSE,
+           dfSummary.silent = TRUE,
+           footnote = NA,
+           subtitle.emphasis = FALSE,
+           headings = FALSE)
+st_css()
+```
+
+\newpage
+
+# Data preparation
+
+```{r,echo=TRUE,message=FALSE,results='hide',warning=FALSE}
+###################### Loading the data #######################
+data_age <- readRDS("data_paper_1000d.rds")
+```
+
+```{r,echo=TRUE,message=FALSE,results='hide',warning=FALSE}
+###################### age variable #######################
+
+######## First case ########
+# <= 30 days (1 month);
+# 31 days |- 180 days (between 1 and 6 months); 
+# 181 days |- 365 days (between 6 and 12 months); 
+# >= 366 days (more than 12 months).
+
+data_age1 <- data_age %>%
+  mutate(age_months_firstcase = case_when(
+    idade_dias <= 30 ~ "1 month",
+    idade_dias > 30 & idade_dias <= 180 ~ "between 1 and 6 months",
+    idade_dias > 180 & idade_dias <= 365 ~ "between 6 and 12 months",
+    idade_dias > 365 ~ "more than 12 months") 
+    )
+
+######## Second case ########
+# <= 30 days (1 month); 
+# 31 days |- 180 days (between 1 and 6 months); 
+# 181 days |- 365 days (between 6 and 12 months); 
+# 366 days |- 545 days (between 12 and 18 months);
+# >= 546 days (more than 18 months).
+
+data_age2 <- data_age1 %>%
+  mutate(age_months_secondcase = case_when(
+    idade_dias <= 30 ~ "1 month",
+    idade_dias > 30 & idade_dias <= 180 ~ "between 1 and 6 months",
+    idade_dias > 180 & idade_dias <= 365 ~ "between 6 and 12 months",
+    idade_dias > 365 & idade_dias <= 545 ~ "between 12 and 18 months",
+    idade_dias > 545 ~ "more than 18 months") 
+    )
+```
+
+# Quantitative analysis
+
+## Analysis of age(days)
+
+```{r,echo=TRUE,message=FALSE,warning=FALSE}
+ggplot(data_age2, aes(x = idade_dias)) + 
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 125,
+                 colour = "black",
+                 fill = "white") +
+  geom_density(alpha = .2, fill = "#FF6666") +
+  labs(x = "\nAge(days)",
+       y = "Density\n",
+       title = "Histogram of age(days)")
+```
+
+**Figure 1:** Histogram of age in unit of days (bars) and density (curve with red area).
+
+```{r,echo=TRUE,message=FALSE,results='asis',warning=FALSE}
+data_age2$variants <- factor(data_age2$variants, 
+                             levels = c("original",
+                                        "gamma",
+                                        "delta",
+                                        "omicron")
+                             )
+
+data_age2 %>% 
+  ggplot(aes(x = variants,
+             y = idade_dias,
+             fill = variants)) +
+  geom_boxplot() +
+  xlab("\nVariants") +
+  ylab("Age(Days)\n") +
+  theme(legend.position = "none")
+```
+
+**Figure 2:** Boxplot of variants by age in a unit of days.
+
+```{r,echo=TRUE,message=FALSE,results='asis',warning=FALSE}
+# Summary measurement functions
+media <- function(x) 
+  mean(x, na.rm = TRUE)
+mediana <- function(x)
+  median(x, na.rm = TRUE)
+DP <- function(x)
+  sd(x, na.rm = TRUE)
+minimo <- function(x)
+  base::min(x, na.rm = TRUE)
+maximo <- function(x) 
+  base::max(x, na.rm = TRUE)
+q25 <- function(x) 
+  stats::quantile(x, p = 0.25, na.rm = TRUE)
+q75 <- function(x)
+  stats::quantile(x, p = 0.75, na.rm = TRUE)
+IQR <- function(x) 
+  round(q75(x) - q25(x), 2)
+n <- function(x) 
+  sum(!is.na(x))
+```
+
+\newpage
+
+```{r,echo=TRUE,message=FALSE,results='asis',warning=FALSE}
+datasummary(variants ~ idade_dias*(n + media + DP + mediana + minimo +
+                                   maximo + q25 + q75 + IQR), 
+            data = data_age2, output = 'markdown')
+```
+
+**Table 1:** Descriptive metrics of age (days) by variants.
+
+## Analysis of age(months)
+
+```{r,echo=TRUE,message=FALSE}
+ggplot(data_age2, aes(x = age_month)) + 
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 24,
+                 colour = "black",
+                 fill = "white") +
+  geom_density(alpha = .2, fill = "#FF6666") +
+  labs(x = "\nAge(month)",
+       y = "Density\n",
+       title = "Histogram of age(month)")
+```
+
+**Figure 3:** Histogram of age in unit of months (bars) and density (curve with red area).
+
+```{r,echo=TRUE,message=FALSE,results='asis',warning=FALSE}
+data_age2 %>% 
+  ggplot(aes(x = variants,
+             y = age_month,
+             fill = variants)) +
+  geom_boxplot() +
+  xlab("\nVariants") +
+  ylab("Age(month)\n") +
+  theme(legend.position = "none")
+```
+
+**Figure 4:** Boxplot of variants by age in a unit of months.
+
+```{r,echo=TRUE,message=FALSE,results='asis',warning=FALSE}
+datasummary(variants ~ age_month*(n + media + DP + mediana + minimo +
+                                   maximo + q25 + q75 + IQR), 
+            data = data_age2, output = 'markdown')
+```
+
+**Table 2:** Descriptive metrics of age (months) by variants.
+
+\newpage
+
+# Grouped age
+
+## First case
+
+```{r,echo=TRUE,message=FALSE,results='asis',warning=FALSE}
+######## First case ########
+data_age2$age_months_firstcase <- 
+  as.factor(data_age2$age_months_firstcase)
+
+summarytools::ctable(
+        data_age2$age_months_firstcase,
+        data_age2$variants,
+        prop = "c",
+        headings = st_options("headings"),
+        display.labels = st_options("display.labels"),
+        useNA = "ifany",
+        OR = TRUE,
+        chisq = TRUE
+      )
+```
+
+**Table 3:** Age(months) versus variants, where age is grouped as: <= 30 days (1 month); 31 days |- 180 days (between 1 and 6 months); 181 days |- 365 days (between 6 and 12 months); >= 366 days (more than 12 months).
+
+## Second case
+
+```{r,echo=TRUE,message=FALSE,results='asis',warning=FALSE}
+######## Second case ########
+data_age2$age_months_secondcase <- 
+  factor(data_age2$age_months_secondcase, 
+         levels = c("1 month",
+                    "between 1 and 6 months",
+                    "between 6 and 12 months",
+                    "between 12 and 18 months",
+                    "more than 18 months")
+         )
+
+summarytools::ctable(
+        data_age2$age_months_secondcase,
+        data_age2$variants,
+        prop = "c",
+        headings = st_options("headings"),
+        display.labels = st_options("display.labels"),
+        useNA = "ifany",
+        OR = TRUE,
+        chisq = TRUE
+      )
+```
+
+**Table 4:** Age(months) versus variants, where age is grouped as: <= 30 days (1 month); 31 days |- 180 days (between 1 and 6 months); 181 days |- 365 days (between 6 and 12 months); 366 days |- 545 days (between 12 and 18 months); >= 546 days (more than 18 months).
+
+# Analysis by evolution(death = yes)
+
+## Quantitative analysis
+
+### Age(days)
+
+```{r,echo=TRUE,message=FALSE}
+data_age2_death <- filter(data_age2, death == "death")
+
+ggplot(data_age2_death, aes(x = idade_dias)) + 
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 50,
+                 colour = "black",
+                 fill = "white") +
+  geom_density(alpha = .2, fill = "#FF6666") +
+  labs(x = "\nAge(days)",
+       y = "Density\n",
+       title = "Histogram of age(days)")
+```
+
+**Figure 5:** Histogram of age in unit of days (bars) and density (curve with red area). Here, only cases that evolved into death are considered.
+
+```{r,echo=TRUE,message=FALSE,results='asis',warning=FALSE}
+data_age2_death %>% 
+  ggplot(aes(x = variants,
+             y = age_month,
+             fill = variants)) +
+  geom_boxplot() +
+  xlab("\nVariants") +
+  ylab("Age(days)\n") +
+  theme(legend.position = "none")
+```
+
+**Figure 6:** Boxplot of variants by age in a unit of days. Here, only cases that evolved into death are considered.
+
+```{r,echo=TRUE,message=FALSE,results='asis',warning=FALSE}
+datasummary(variants ~ idade_dias*(n + media + DP + mediana + minimo +
+                                   maximo + q25 + q75 + IQR), 
+            data = data_age2_death, output = 'markdown')
+```
+
+**Table 5:** Descriptive metrics of age (days) by variants. Here, only cases that evolved into death are considered.
+
+### Age(months)
+
+```{r,echo=TRUE,message=FALSE}
+ggplot(data_age2_death, aes(x = age_month)) + 
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 24,
+                 colour = "black",
+                 fill = "white") +
+  geom_density(alpha = .2, fill = "#FF6666") +
+  labs(x = "\nAge(month)",
+       y = "Density\n",
+       title = "Histogram of age(month)")
+```
+
+**Figure 7:** Histogram of age in unit of months (bars) and density (curve with red area). Here, only cases that evolved into death are considered.
+
+```{r,echo=TRUE,message=FALSE,results='asis',warning=FALSE}
+data_age2_death %>% 
+  ggplot(aes(x = variants,
+             y = age_month,
+             fill = variants)) +
+  geom_boxplot() +
+  xlab("\nVariants") +
+  ylab("Age(month)\n") +
+  theme(legend.position = "none")
+```
+
+**Figure 8:** Boxplot of variants by age in a unit of months. Here, only cases that evolved into death are considered.
+
+```{r,echo=TRUE,message=FALSE,results='asis',warning=FALSE}
+datasummary(variants ~ age_month*(n + media + DP + mediana + minimo +
+                                   maximo + q25 + q75 + IQR), 
+            data = data_age2_death, output = 'markdown')
+```
+
+**Table 6:** Descriptive metrics of age (months) by variants. Here, only cases that evolved into death are considered.
+
+## Grouped age
+
+### First case
+
+```{r,echo=TRUE,message=FALSE,results='asis',warning=FALSE}
+######## First case ########
+summarytools::ctable(
+        data_age2_death$age_months_firstcase,
+        data_age2_death$variants,
+        prop = "c",
+        headings = st_options("headings"),
+        display.labels = st_options("display.labels"),
+        useNA = "ifany",
+        OR = TRUE,
+        chisq = TRUE
+      )
+```
+
+**Table 7:** Age(months) versus variants, where age is grouped as: <= 30 days (1 month); 31 days |- 180 days (between 1 and 6 months); 181 days |- 365 days (between 6 and 12 months); >= 366 days (more than 12 months). Here, only cases that evolved into death are considered.
+
+### Second case
+
+```{r,echo=TRUE,message=FALSE,results='asis',warning=FALSE}
+######## Second case ########
+summarytools::ctable(
+        data_age2_death$age_months_secondcase,
+        data_age2_death$variants,
+        prop = "c",
+        headings = st_options("headings"),
+        display.labels = st_options("display.labels"),
+        useNA = "ifany",
+        OR = TRUE,
+        chisq = TRUE
+      )
+```
+
+**Table 8:** Age(months) versus variants, where age is grouped as: <= 30 days (1 month); 31 days |- 180 days (between 1 and 6 months); 181 days |- 365 days (between 6 and 12 months); 366 days |- 545 days (between 12 and 18 months); >= 546 days (more than 18 months). Here, only cases that evolved into death are considered.
